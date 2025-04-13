@@ -1,7 +1,7 @@
 # model.py
 from wtforms import SubmitField, BooleanField, IntegerField, StringField,PasswordField, validators, TextAreaField
-from flask_wtf import Form
-class AuditRegForm(Form):
+from flask_wtf import FlaskForm
+class AuditRegForm(FlaskForm):
     account_number =  StringField('Account count', [validators.DataRequired()])
     name_first = StringField('First Name', [validators.DataRequired()])
     name_last = StringField('Last Name', [validators.DataRequired()])
@@ -14,7 +14,7 @@ class AuditRegForm(Form):
     message='Passwords must match')])
     confirm = PasswordField('Repeat Password')
     submit = SubmitField('Submit')
-class PatientRegForm(Form):
+class PatientRegForm(FlaskForm):
     account_number =  StringField('Account count', [validators.DataRequired()])
     name_first = StringField('First Name', [validators.DataRequired()])
     name_last = StringField('Last Name', [validators.DataRequired()])
@@ -30,12 +30,12 @@ class PatientRegForm(Form):
     message='Passwords must match')])
     confirm = PasswordField('Repeat Password')
     submit = SubmitField('Submit')
-class LogForm(Form):
+class LogForm(FlaskForm):
     user_name = StringField('Account Address', [validators.DataRequired()])
     contract_address = StringField('Contract Address (If Audit put 0)', [validators.DataRequired()])
     password = PasswordField('Your Password', [validators.DataRequired()])
     submit = SubmitField('Submit')
-class PatientActions(Form):
+class PatientActions(FlaskForm):
     start_visit = StringField('Get an Appointment (Starts a new Medical Record)', [validators.DataRequired()])
     add_doctors = StringField('Add doctor audits', [validators.DataRequired()])
     remove_doctors = StringField('Remove doctor audits', [validators.DataRequired()])
@@ -43,7 +43,7 @@ class PatientActions(Form):
     remove_audits = StringField('Remove other audits', [validators.DataRequired()])
     print_record = StringField('Print Medical Records', [validators.DataRequired()])
     delete_record = StringField('Delete Medical Records', [validators.DataRequired()])
-class AuditActions(Form):
+class AuditActions(FlaskForm):
     contract_address =  StringField('Patient Contract Address (QR code in registration)', [validators.DataRequired()])
     print_record = StringField('Print Medical Records', [validators.DataRequired()])
     update_record_id = StringField('Update Medical Records', [validators.DataRequired()])

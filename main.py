@@ -16,9 +16,12 @@ from cryptography.fernet import Fernet
 from datetime import datetime
 from dateutil import parser
 import clipboard
-
+import bcrypt
 from web3 import Web3
 import json
+import csv
+
+
 
 # install ganache using https://www.trufflesuite.com/ganache
 
@@ -26,7 +29,7 @@ import json
 ganache_url = "HTTP://127.0.0.1:7545"
 # pass in http url
 web3 = Web3(Web3.HTTPProvider(ganache_url))
-print("Web3 is connected = " + str(web3.isConnected()))
+print("Web3 is connected = " + str(web3.is_connected()))
 
 # connect to remix
 f = open('abi.json',)
@@ -36,17 +39,17 @@ bytecode = json.load(f)['object']
 contract = web3.eth.contract(abi=abi, bytecode=bytecode)
 
 # default account to send money from default account in each user creation
-# account_def = "0xa39c1505c345cc50C19924861659BbB242B9F6d8"
-# pk_def = "f1f6e43d6e69d645805581739225db9e256377745fde1041aabf2e3357621386"
+account_def = "0x75C09AFf0E37a2c9456dcAfa17a137Bd43925f62"
+pk_def = "0x6ff65bea83e5931af77efa16f7a8fb3e6c09fee598fea14c4150cccf81824cbb"
 
 app = Flask(__name__)
 app.config.from_mapping(
     SECRET_KEY=b'\xd6\x04\xbdj\xfe\xed$c\x1e@\xad\x0f\x13,@G')
+
 Bootstrap(app)
 # Encryption of authorization data
 # Generate once use all time
-#enc_key = Fernet.generate_key()
-# get key
+enc_key = Fernet.generate_key()
 file = open('data/enc_key.key', 'rb') # rb = read bytes
 enc_key  = file.read()
 file.close()
@@ -63,41 +66,39 @@ def patient_registration():
     if request.method == 'POST' and form.validate_on_submit():
         ################## CREATE GANACHE ACCOUNT #################
 #                 #get nonce of default account
-#                 nonce = web3.eth.getTransactionCount(account_def)
-#
-#                 # create ganache accounts
-#                 account= web3.eth.account.create()
-#                 account_num = account.address
-#                 account_pk = account.privateKey
-#                 print("new account created: " +  str(account_num))
-#
-#                 #build a transaction
-#                 tx = {
-#                     'nonce': nonce,
-#                     'to': account_num,
-#                     'value': web3.toWei(1, 'ether'),
-#                     'gas': 2000000,
-#                     'gasPrice': web3.toWei('50', 'gwei'),
-#                 }
-#
-#                 #sign transaction
-#                 signed_tx = web3.eth.account.signTransaction(tx, pk_def)
-#
-#                 #send transaction
-#                 tx_hash = web3.eth.sendRawTransaction(signed_tx.rawTransaction)
-#
-#                 print("new account balance: " + str(web3.eth.getBalance(str(account_num))))
+                nonce = web3.eth.get_transaction_count(account_def)
 
-        ###################### USE EXITING GANACHE ACCOUNT ###################################
-            try:
-                account_num= web3.eth.accounts[int(form.account_number.data)]
-            except:
-                print("Account number failed")
+                # create ganache accounts
+                account= web3.eth.account.create()
+                account_num = account.address
+                account_pk = account.key.hex()
+                print("new account created: " +  str(account_num))
+
+                #build a transaction
+                tx = {
+                    'nonce': nonce,
+                    'to': account_num,
+                    'value': web3.to_wei(1, 'ether'),
+                    'gas': 2000000,
+                    'gasPrice': web3.to_wei('50', 'gwei'),
+                }
+
+                #sign transaction
+                signed_tx = web3.eth.account.sign_transaction(tx, pk_def)
+
+                #send transaction
+                tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+
+                print("new account balance: " + str(web3.eth.get_balance(str(account_num))))
+                try:
+                    account_num= web3.eth.accounts[int(form.account_number.data)]
+                except:
+                    print("Account number failed")
         ###################### RECORD ACCOUNT DETAILS TO A FILE ##############################
-            fname = hashlib.sha224(b"signin_data").hexdigest()
-            f = open("data/"+fname+".csv", "a")
-            pass_hash = hashlib.sha224(bytes("loremipsum"+form.password.data,encoding='utf-8')).hexdigest()
-            encrypted_data = "patient" + ", " + str(fernet.encrypt(bytes("patient",encoding='utf-8'))) + ", " +\
+                fname = hashlib.sha224(b"signin_data").hexdigest()
+                f = open("data/"+fname+".csv", "a")
+                pass_hash = hashlib.sha224(bytes("loremipsum"+form.password.data,encoding='utf-8')).hexdigest()
+                encrypted_data = "patient" + ", " + str(fernet.encrypt(bytes("patient",encoding='utf-8'))) + ", " +\
                     str(fernet.encrypt(bytes(form.name_first.data,encoding='utf-8'))) + ", " +\
                     str(fernet.encrypt(bytes(form.name_last.data,encoding='utf-8'))) + ", " +\
                     str(fernet.encrypt(bytes(form.email.data,encoding='utf-8')))  + ", " +\
@@ -106,24 +107,40 @@ def patient_registration():
                     str(fernet.encrypt(bytes(form.zip_code.data,encoding='utf-8')))  + ", " +\
                     str(fernet.encrypt(bytes(form.insurance.data,encoding='utf-8')))  + ", " +\
                     str(fernet.encrypt(bytes(pass_hash,encoding='utf-8'))) + "\n"
-            f.write(encrypted_data)
-            f.close()
+                f.write(encrypted_data)
+                f.close()
 
             ################## CONSTRUCTOR OF SMART CONTRACT -- DEPLOY #############################
-            try:
-                web3.eth.defaultAccount = account_num
-            except:
-                print("Account number failed")
-            #construct
-            tx_hash = contract.constructor(str(form.name_first.data),str(form.name_last.data),str(form.insurance.data),"bdate", str(form.email.data),str(form.phone.data),str(form.zip_code),str(form.city.data),"ekey").transact()
-            tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
+                try:
+                    print("Account number:", account_num)
+                    print("Available accounts:", web3.eth.accounts)
+                    web3.eth.default_account = account_num
+                except:
+                    print("Account number failed")
+            #construct            
+                tx_hash = contract.constructor(
+                    str(form.name_first.data),
+                    str(form.name_last.data),
+                    str(form.insurance.data),
+                    "bdate",
+                    str(form.email.data),
+                    str(form.phone.data),
+                    str(form.zip_code.data),
+                    str(form.city.data),
+                    "ekey"
+                    ).transact({
+                        'from': account_num,
+                        'gas': 3000000,
+                        'gasPrice': web3.to_wei('20', 'gwei'),})
+                
+                tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash) 
 
-            username = form.name_first.data + " " + form.name_last.data
-            address = account_num
-            pk = "no need for demo but will be sent in actual app as email"
-            result = "We have emailed you a key pair and contract address! "+"\nNormally it will be emailed using emailing API:"
-            patient_qr = "https://api.qrserver.com/v1/create-qr-code/?data="+ str(account_num) +"&size=150x150"
-            return render_template('result.html', result=result, username = username, address = address, pk=pk, tx_hash = tx_hash.hex(), tx_receipt = tx_receipt,audit_qr=patient_qr)
+                username = form.name_first.data + " " + form.name_last.data
+                address = account_num
+                pk = "no need for demo but will be sent in actual app as email"
+                result = "We have emailed you a key pair and contract address! "+"\nNormally it will be emailed using emailing API:"
+                patient_qr = "https://api.qrserver.com/v1/create-qr-code/?data="+ str(account_num) +"&size=150x150"
+                return render_template('result.html', result=result, username = username, address = address, pk=pk, tx_hash = tx_hash.hex(), tx_receipt = tx_receipt,audit_qr=patient_qr)
     return render_template('patientreg.html', form=form)
 
 @app.route('/auditreg', methods=['GET', 'POST'])
@@ -166,14 +183,20 @@ def login():
     form2 = PatientActions(request.form)
     form3 = AuditActions(request.form)
     address = form.user_name.data
-    encrypt_address = fernet.encrypt(bytes(address,encoding='utf-8'))
-    hashed_pass = hashlib.sha224(bytes("loremipsum"+form.password.data,encoding='utf-8')).hexdigest()
+    encrypt_address = fernet.encrypt(bytes(str(address), encoding='utf-8'))
+    if form.password.data:
+        hashed_pass = hashlib.sha224(bytes("loremipsum" + form.password.data, encoding='utf-8')).hexdigest()
+    else:
+        error = 'Password is required.'
+        return render_template('login.html', form=form, error=error)
+
     hashed_ecrypt_pass = fernet.encrypt(bytes(hashed_pass,encoding='utf-8'))
     if request.method == 'POST' and form.validate_on_submit():
         df=pd.read_csv("data/"+fname+".csv")
         row = df.loc[df['address'] == str(encrypt_address)]
-        if(row[password] == str(hashed_pass)):
-#         if form.password.data != '':
+        if row.empty:
+            error = 'Account not found. Please try again.'
+        elif row['password'].values[0] != str(hashed_pass):
             error = 'Invalid Credentials. Please try again.'
         else:
             if str(form.contract_address.data) != "0":
@@ -187,6 +210,8 @@ def patientdash():
     form = PatientActions(request.form)
     account_address  = request.args.get("address")
     contract_address = request.args.get("contract")
+    print("Account:", account_address)
+    print("Contract:", contract_address)
     isCard = False
     if request.method == 'POST':
         if request.form.get('action1') == 'VALUE1':
@@ -206,17 +231,17 @@ def patientdash():
             tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
             event_logs = contract.events.event_start_visit.getLogs()
             qr_code = "https://api.qrserver.com/v1/create-qr-code/?data="+event_logs[0]['args']['record_unique_id']+"&size=150x150"
-#             changes = filter.get_new_entries()
+            changes = filter.get_new_entries()
             print("--------------------changes-------------")
             print(event_logs)
             print("--------------------end changes-------------")
-#             print(tx_receipt)
-#             contract.functions.record_mapping()
+            print(tx_receipt)
+            contract.functions.record_mapping()
             ################## End Solidity TRansaction ###############
             ###################### ENCRYPT & RECORD ACCOUNT DETAILS TO A FILE ##############################
             fname = hashlib.sha224(b"uniqueid_data").hexdigest()
             f = open("data/"+fname+".csv", "a")
-            encrypted_data = str(fernet.encrypt(bytes(contract_address,encoding='utf-8')))\
+            encrypted_data = str(fernet.encrypt(bytes(contract_address,encoding='utf-8')))
             +","+str(fernet.encrypt(bytes(event_logs[0]['args']['record_unique_id'],encoding='utf-8')))+"\n"
             f.write(encrypted_data)
             f.close()
@@ -236,12 +261,12 @@ def patientdash():
             tx_hash  = contract.functions.addDoctors(dr_id).transact()
             tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
             event_logs = contract.events.event_add_doctor.getLogs()
-#             changes = filter.get_new_entries()
+            changes = filter.get_new_entries()
             print("--------------------changes-------------")
             print(event_logs[0]['args']['return_msg'])
             print("--------------------end changes-------------")
-#             print(tx_receipt)
-#             contract.functions.record_mapping()
+            print(tx_receipt)
+            contract.functions.record_mapping()
             ################## End Solidity TRansaction ###############
             return render_template("patient.html", form=form, isCard  = isCard, username=account_address,contract_address=contract_address, result=result, tx_receipt = tx_receipt, tx_hash=tx_hash.hex(), event_logs = event_logs)
         elif  request.form.get('action3') == 'VALUE3':
@@ -257,12 +282,12 @@ def patientdash():
             tx_hash  = contract.functions.removeDoctors(dr_id).transact()
             tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
             event_logs = contract.events.event_remove_doctor.getLogs()
-#             changes = filter.get_new_entries()
+            changes = filter.get_new_entries()
             print("--------------------changes-------------")
             print(event_logs)
             print("--------------------end changes-------------")
-#             print(tx_receipt)
-#             contract.functions.record_mapping()
+            print(tx_receipt)
+            contract.functions.record_mapping()
             ################## End Solidity TRansaction ###############
             return render_template("patient.html", form=form, isCard  = isCard, username=account_address,contract_address=contract_address, result=result, tx_receipt = tx_receipt, tx_hash=tx_hash.hex(), event_logs = event_logs)
         elif  request.form.get('action4') == 'VALUE4':
@@ -352,6 +377,7 @@ def patientdash():
             print("--------------------changes-------------")
             print(event_logs)
             print("--------------------end changes-------------")
+
 
             ################## End Solidity TRansaction ###############
             return render_template("patient.html", form=form, isCard  = isCard, username=account_address,contract_address=contract_address, result=result, tx_receipt = tx_receipt, tx_hash=tx_hash.hex(), event_logs = event_logs)
@@ -511,4 +537,6 @@ def auditdash():
 
 if __name__ == '__main__':
     # add ssl certificate
-    app.run(ssl_context='adhoc')
+    # app.run(ssl_context='adhoc')
+    app.run(debug=True, ssl_context='adhoc')
+
